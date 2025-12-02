@@ -135,7 +135,7 @@ L'IA a été entraînée sur une topologie fidèle à la réalité 5G, encodant 
 
 ## 3. Guide de Reproductibilité Instantanée
 
-Pour exécuter le prototype complet (Cluster, IA et Démo), suivez ces étapes dans des terminaux séparés.
+Pour exécuter le prototype complet (Cluster, IA et Démo), suivez ces étapes dans des terminaux séparés. Tout les fichiers doivent etre dans le meme dossier !
 
 ### Terminal 1 : Préparation & Entraînement
 
