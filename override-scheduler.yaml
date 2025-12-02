@@ -1,0 +1,26 @@
+# override-scheduler.yaml
+
+# On force l'utilisation de ton scheduler pour chaque fonction réseau
+
+oai-amf:
+  schedulerName: "nexslice-ai"
+
+oai-smf:
+  schedulerName: "nexslice-ai"
+
+oai-upf:
+  schedulerName: "nexslice-ai"
+
+oai-nrf:
+  schedulerName: "nexslice-ai"
+
+oai-udm:
+  schedulerName: "nexslice-ai"
+
+oai-udr:
+  schedulerName: "nexslice-ai"
+
+oai-ausf:
+  schedulerName: "nexslice-ai"
+
+# Ajoute d'autres composants si ton chart en contient (ex: oai-nssf, oai-pcf)

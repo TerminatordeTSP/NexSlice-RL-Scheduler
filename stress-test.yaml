@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-cpu
+  namespace: nexslice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress-cpu
+  template:
+    metadata:
+      labels:
+        app: stress-cpu
+    spec:
+      schedulerName: nexslice-ai
+      containers:
+      - name: stress
+        image: vish/stress
+        args: ["-cpus", "12"]     # ⚠️ Sature le M4 Pro
+        resources:
+          requests:
+            cpu: "1000m"

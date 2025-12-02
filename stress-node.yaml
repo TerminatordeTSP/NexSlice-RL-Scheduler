@@ -1,0 +1,19 @@
+# stress-node.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stress-killer
+  namespace: nexslice
+  labels:
+    type: stress
+spec:
+  schedulerName: nexslice-ai
+  containers:
+  - name: stress
+    image: vish/stress
+    args: ["-cpus", "12"] # M4 Pro Killer
+    resources:
+      requests:
+        cpu: "2000m" # On fait croire qu'il est petit...
+      limits:
+        cpu: "12000m" # ...mais il mange tout !
