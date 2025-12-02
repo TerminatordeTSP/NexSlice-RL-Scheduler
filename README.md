@@ -239,7 +239,7 @@ kubectl create namespace "$NS_MONITORING" || true
 kubectl create namespace "$NS_APP" || true 
 
 # [INSTALLATION PROMETHEUS 5S]
-helm repo add prometheus-community [https://prometheus-community.github.io/helm-charts](https://prometheus-community.github.io/helm-charts)
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm install prometheus prometheus-community/prometheus \
   --namespace "$NS_MONITORING" \
