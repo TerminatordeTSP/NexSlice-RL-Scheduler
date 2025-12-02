@@ -143,7 +143,6 @@ C'est ici que vous entraînez le cerveau RL pour la première fois.
 
 ```bash
 # 1. FERMER OrbStack/Docker pour libérer le CPU
-# (Attendre que le setup_demo.sh soit terminé avant de fermer)
 
 # 2. Entraînement de l'IA (Cœur du projet)
 python3 train_rl.py
