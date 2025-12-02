@@ -187,7 +187,7 @@ watch -n 1 kubectl top nodes
 ---
 
 # Analyse Détaillée des Scénarios de Test
-Le script de démonstration a été divisé en trois phases pour vérifier la capacité de l'IA à appliquer les règles de Slicing, à gérer la rareté (Compromis) et à éviter les catastrophes (Evasion).
+Le script de démonstration a été divisé en trois phases pour vérifier la capacité de l'IA à appliquer les règles de Slicing, à gérer la rareté (Compromis) et à éviter les catastrophes (Evasion). Pour faciliter la compréhension de cette partie, il est conseillé de visionner la vidéo de démo avant.
 
 ### 3.1. Phase 1 : Validation de la Logique de Slicing (SVT : Latence)
 
