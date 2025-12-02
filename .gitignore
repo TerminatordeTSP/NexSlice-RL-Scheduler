@@ -1,0 +1,17 @@
+# Ignorer les fichiers Python générés
+__pycache__/
+*.pyc
+
+# Ignorer les environnements virtuels
+venv/
+.venv/
+
+# Ignorer le Cerveau RL (trop lourd)
+scheduler_rl_brain.zip
+scheduler_rl_brain/
+
+# Ignorer les données de test
+scheduler_dataset.csv
+
+# Ignorer les configurations Kubernetes locales
+bind-*.json
