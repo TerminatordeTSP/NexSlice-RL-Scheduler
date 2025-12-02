@@ -157,7 +157,7 @@ Une fois l'entraînement terminé (et le fichier .zip créé), relancez OrbStack
 # 3. Nettoyage et création du cluster K3d (3 nœuds) + Prometheus
 ./setup_cluster.sh
 ```
-L'execution du script peut provoquer une erreur du type "error: timed out waiting for the condition on pods/prometheus-server-59b8d96b99-mbvc2" mais ce n'est pas un problème, il suffit de lander " kubectl get pods -n monitoring" puis d'attendre que tout soit en "running" pour passer a la suite.
+L'execution du script peut provoquer une erreur du type "error: timed out waiting for the condition on pods/prometheus-server-59b8d96b99-mbvc2" mais ce n'est pas un problème, il suffit de lancer " kubectl get pods -n monitoring" puis d'attendre que tout soit en "running" pour passer a la suite.
 
 **ATTENTION : Remplacez PROM_POD par le nom exact du pod Server Prometheus**
 ```bash
