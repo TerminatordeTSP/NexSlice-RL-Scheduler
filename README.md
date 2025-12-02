@@ -155,7 +155,7 @@ python3 train_rl.py
 Une fois l'entraînement terminé (et le fichier .zip créé), relancez OrbStack.
 ```bash
 # 3. Nettoyage et création du cluster K3d (3 nœuds) + Prometheus
-./setup_demo.sh
+./setup_cluster.sh
 ```
 **ATTENTION : Remplacez PROM_POD par le nom exact du pod Server Prometheus**
 ```bash
@@ -218,7 +218,7 @@ Le prototype **NexSlice Scheduler RL** est un succès complet. Il répond non se
 
 
 
-### 1. `setup_demo.sh` (Initialisation complète de l'Infra)
+### 1. `setup_cluster.sh` (Initialisation complète de l'Infra)
 
 
 ```bash
