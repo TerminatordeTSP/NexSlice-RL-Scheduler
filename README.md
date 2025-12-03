@@ -770,3 +770,136 @@ deploy "amf-final-clean" 100 100 "Server" # Attendu : Server (Règle Consolidati
 echo -e "\n${GREEN}=== DÉMO ULTIME TERMINÉE ===${NC}"
 
 ```
+### 6. `demo_dual_scenarios.sh` 
+
+```bash
+#!/bin/bash
+
+# Couleurs
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+NS="nexslice"
+STRESS_NODE="k3d-nexslice-cluster-agent-1"
+
+# --- FONCTIONS D'AUDIT ---
+
+audit_latency() {
+    echo -e "\n${BLUE}--- AUDIT SCÉNARIO 1 (LATENCE) ---${NC}"
+    # On compte où sont les URLLC (qui DOIVENT être sur l'Edge)
+    URLLC_EDGE=$(kubectl get pods -n $NS -l type=urllc -o wide --no-headers 2>/dev/null | grep "agent" | wc -l)
+    URLLC_CLOUD=$(kubectl get pods -n $NS -l type=urllc -o wide --no-headers 2>/dev/null | grep "server" | wc -l)
+    
+    echo -e "URLLC sur EDGE  (Rapide) : $URLLC_EDGE"
+    echo -e "URLLC sur CLOUD (Lent)   : $URLLC_CLOUD"
+
+    if [ "$URLLC_CLOUD" -gt 0 ]; then
+        echo -e "👉 ${RED}ÉCHEC : Des services critiques sont sur le Cloud !${NC}"
+    elif [ "$URLLC_EDGE" -eq 0 ]; then
+        echo -e "👉 ${YELLOW}INCONCLUSIF : Aucun pod placé.${NC}"
+    else
+        echo -e "👉 ${GREEN}SUCCÈS : Latence respectée.${NC}"
+    fi
+}
+
+audit_load() {
+    echo -e "\n${BLUE}--- AUDIT SCÉNARIO 2 (CHARGE CPU) ---${NC}"
+    # On compte combien de pods 'web-app' ont atterri sur le nœud en feu (Agent-1)
+    BAD_PLACEMENT=$(kubectl get pods -n $NS -l app=web-app -o wide --no-headers 2>/dev/null | grep "$STRESS_NODE" | wc -l)
+    GOOD_PLACEMENT=$(kubectl get pods -n $NS -l app=web-app -o wide --no-headers 2>/dev/null | grep -v "$STRESS_NODE" | wc -l)
+    
+    echo -e "Pods sur Nœud SAIN      : $GOOD_PLACEMENT"
+    echo -e "Pods sur Nœud SURCHARGÉ : $BAD_PLACEMENT"
+
+    if [ "$BAD_PLACEMENT" -gt 0 ]; then
+        echo -e "👉 ${RED}ÉCHEC : Le scheduler a envoyé du trafic sur un nœud qui brûle !${NC}"
+    else
+        echo -e "👉 ${GREEN}SUCCÈS : Le scheduler a esquivé la panne.${NC}"
+    fi
+}
+
+# --- MOTEUR DU SCÉNARIO ---
+
+run_demo() {
+    SCHEDULER=$1
+    
+    echo -e "\n${YELLOW}>>> INITIALISATION (Nettoyage)...${NC}"
+    kubectl delete all --all -n $NS >/dev/null 2>&1
+    sleep 5
+
+    # ========================================================
+    # SCÉNARIO 1 : LATENCE & SLICING
+    # ========================================================
+    echo -e "\n${GREEN}=== SCÉNARIO 1 : GESTION DE LA LATENCE (SLICING) ===${NC}"
+    echo "Contexte : Arrivée massive de Streaming (eMBB). Puis Urgence (URLLC)."
+    
+    # 1. Vague eMBB (12 Pods)
+    # IA -> Devrait mettre sur Cloud. Défaut -> Partout.
+    echo -e "${CYAN}1. Déploiement eMBB (Streaming Video)...${NC}"
+    kubectl create deployment video-stream --image=nginx --replicas=12 -n $NS >/dev/null 2>&1
+    kubectl patch deployment video-stream -n $NS -p '{"spec":{"template":{"metadata":{"labels":{"type":"embb"}},"spec":{"schedulerName": "'$SCHEDULER'", "containers": [{"name": "nginx", "resources": {"requests": {"cpu": "150m"}}}]}}}}' >/dev/null 2>&1
+    
+    echo "   ⏳ Attente placement (15s)..."
+    for i in {15..1}; do echo -ne "$i.. "; sleep 1; done
+    echo ""
+
+    # 2. Vague URLLC (5 Pods)
+    # Doivent aller sur l'Edge. Si l'Edge est plein de vidéos, c'est raté.
+    echo -e "${CYAN}2. Déploiement URLLC (Chirurgie à distance)...${NC}"
+    kubectl create deployment surgery-bot --image=nginx --replicas=5 -n $NS >/dev/null 2>&1
+    kubectl patch deployment surgery-bot -n $NS -p '{"spec":{"template":{"metadata":{"labels":{"type":"urllc"}},"spec":{"schedulerName": "'$SCHEDULER'", "containers": [{"name": "nginx", "resources": {"requests": {"cpu": "100m"}}}]}}}}' >/dev/null 2>&1
+    
+    echo "   ⏳ Attente placement (10s)..."
+    sleep 10
+    
+    audit_latency
+
+    echo -e "\n${YELLOW}>>> Nettoyage pour Scénario 2...${NC}"
+    kubectl delete all --all -n $NS >/dev/null 2>&1
+    sleep 5
+
+    # ========================================================
+    # SCÉNARIO 2 : CHARGE CPU & SURVIE
+    # ========================================================
+    echo -e "\n${GREEN}=== SCÉNARIO 2 : ÉVITEMENT DE SURCHARGE (CPU) ===${NC}"
+    echo "Contexte : L'Agent-1 subit une surcharge CPU massive (100%)."
+    
+    # 1. Lancement du Stress sur Agent-1
+    echo -e "${CYAN}1. Sabotage de l'Agent-1...${NC}"
+    kubectl run stress-node --image=vish/stress --restart=Never --overrides='{"spec": {"nodeName": "'$STRESS_NODE'", "containers": [{"name": "s", "image": "vish/stress", "args": ["-cpus", "10"], "resources": {"requests": {"cpu": "1000m"}}}]}}' -n $NS >/dev/null 2>&1
+    
+    echo -e "${YELLOW}⚠️  PAUSE : Attente de détection de la charge.${NC}"
+    echo "   (Pour le Default, ça ne change rien. Pour l'IA, Prometheus doit voir le pic.)"
+    read -p "Appuyez sur Entrée quand l'Agent-1 est bien chargé (top nodes)..."
+
+    # 2. Déploiement d'une app standard
+    echo -e "${CYAN}2. Déploiement Web-App (10 Pods)...${NC}"
+    kubectl create deployment web-app --image=nginx --replicas=10 -n $NS >/dev/null 2>&1
+    kubectl patch deployment web-app -n $NS -p '{"spec":{"template":{"metadata":{"labels":{"app":"web-app"}},"spec":{"schedulerName": "'$SCHEDULER'", "containers": [{"name": "nginx", "resources": {"requests": {"cpu": "100m"}}}]}}}}' >/dev/null 2>&1
+    
+    echo "   ⏳ Attente placement (15s)..."
+    sleep 15
+    
+    audit_load
+    
+    # Cleanup final
+    kubectl delete pod stress-node -n $NS >/dev/null 2>&1
+    echo -e "\n${GREEN}=== FIN DE LA DÉMO ===${NC}"
+}
+
+# MENU
+echo "Quel scheduler voulez-vous tester ?"
+echo "1) Default (Kube-Scheduler)"
+echo "2) AI Expert (NexSlice-RL)"
+read -p "Choix : " choice
+
+if [ "$choice" == "1" ]; then
+    run_demo "default-scheduler"
+else
+    run_demo "nexslice-ai"
+fi
+```
