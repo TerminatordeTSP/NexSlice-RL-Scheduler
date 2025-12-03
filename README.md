@@ -135,7 +135,7 @@ L'IA a été entraînée sur une topologie fidèle à la réalité 5G, encodant 
 
 ## 3. Guide de Reproductibilité Instantanée
 
-Pour exécuter le prototype complet (Cluster, IA et Démo), suivez ces étapes dans des terminaux séparés. Tout les fichiers doivent etre dans le meme dossier !
+Pour exécuter le prototype complet (Cluster, IA et Démo), suivez ces étapes dans des terminaux séparés.
 
 ### Terminal 1 : Préparation & Entraînement
 
@@ -143,6 +143,7 @@ C'est ici que vous entraînez le cerveau RL pour la première fois.
 
 ```bash
 # 1. FERMER OrbStack/Docker pour libérer le CPU
+# (Attendre que le setup_demo.sh soit terminé avant de fermer)
 
 # 2. Entraînement de l'IA (Cœur du projet)
 python3 train_rl.py
@@ -154,10 +155,8 @@ python3 train_rl.py
 Une fois l'entraînement terminé (et le fichier .zip créé), relancez OrbStack.
 ```bash
 # 3. Nettoyage et création du cluster K3d (3 nœuds) + Prometheus
-./setup_cluster.sh
+./setup_demo.sh
 ```
-L'execution du script peut provoquer une erreur du type "error: timed out waiting for the condition on pods/prometheus-server-59b8d96b99-mbvc2" mais ce n'est pas un problème, il suffit de lancer " kubectl get pods -n monitoring" puis d'attendre que tout soit en "running" pour passer a la suite.
-
 **ATTENTION : Remplacez PROM_POD par le nom exact du pod Server Prometheus**
 ```bash
 export PROM_POD=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server" -o jsonpath='{.items[0].metadata.name}')
@@ -186,10 +185,10 @@ watch -n 1 kubectl top nodes
 
 ---
 
-# Analyse Détaillée des Scénarios de Test
-Le script de démonstration a été divisé en trois phases pour vérifier la capacité de l'IA à appliquer les règles de Slicing, à gérer la rareté (Compromis) et à éviter les catastrophes (Evasion). Pour faciliter la compréhension de cette partie, il est conseillé de visionner la vidéo de démo avant.
+# 4. Analyse Détaillée des Scénarios de Test
+Le script de démonstration a été divisé en trois phases pour vérifier la capacité de l'IA à appliquer les règles de Slicing, à gérer la rareté (Compromis) et à éviter les catastrophes (Evasion).
 
-### 3.1. Phase 1 : Validation de la Logique de Slicing (SVT : Latence)
+### 4.1. Phase 1 : Validation de la Logique de Slicing (SVT : Latence)
 
 Cette phase vérifie si l'IA comprend les règles fondamentales : Edge vs Cloud.
 | Test (Pod) | Profil / Contrainte | Décision IA | Interprétation et Validation |
@@ -198,7 +197,7 @@ Cette phase vérifie si l'IA comprend les règles fondamentales : Edge vs Cloud.
 | **UPF URLLC** | Latence Critique (Edge obligatoire) | **Agent-0** |✅ Validation de Service. Le service critique URLLC est sécurisé sur le nœud Edge le plus vide. |
 | **AMF Control** | Non-Critique (Attendu Cloud) | **Agent-0** | ❌ Divergence (Bias de Sécurité). L'IA préfère l'Edge (parce qu'elle y gagne +20 points et ne perd que -10 pour le gaspillage) plutôt que de s'approcher du Cloud, qui est perçu comme risqué (risque d'atteindre le plafond du Server).|
 
-### 3.2. Phase 2 : Gestion de Crise et Arbitrage (Compromis)
+### 4.2. Phase 2 : Gestion de Crise et Arbitrage (Compromis)
 
 Cette phase force l'IA à prendre des risques et à enfreindre l'une de ses règles (Latence) pour respecter la règle de survie (Capacité).
 | Test (Pod) | Contexte | Décision IA | Pourquoi ce choix ? 
@@ -209,7 +208,55 @@ Cette phase force l'IA à prendre des risques et à enfreindre l'une de ses règ
 
 ---
 
-# 5. Conclusion
+# 5. Comparaison : Kube-Scheduler par Défaut vs NexSlice-AI (RL)
+
+Pour valider la supériorité de l'approche RL, nous avons confronté le scheduler par défaut de Kubernetes (`default-scheduler`) à notre modèle (`nexslice-ai`) sur deux scénarios critiques représentatifs des défis de la 5G, en utilisant le script automatisé `demo_dual_scenarios.sh`.
+
+### 5.1. Résultats du Scénario 1 : Gestion de la Latence (Slicing)
+
+**Contexte :** Une vague massive de trafic vidéo (eMBB, non-critique) arrive, suivie d'une demande critique (URLLC) nécessitant une faible latence (Edge).
+
+| Scheduler | Comportement Observé | Résultat URLLC | Verdict |
+| :--- | :--- | :--- | :--- |
+| **Défaut** | Remplit les nœuds Edge avec la vidéo (car ils sont vides au début). | **2/5 sur Cloud** | 🔴 **ÉCHEC.** Latence non respectée pour 40% des services critiques. |
+| **NexSlice-AI** | Envoie la vidéo sur le Cloud (Server) pour préserver l'Edge. | **5/5 sur Edge** | 🟢 **SUCCÈS.** L'IA a anticipé le besoin en réservant les ressources rares. |
+
+### 5.2. Résultats du Scénario 2 : Évitement de Surcharge (CPU)
+
+**Contexte :** L'un des nœuds Edge (`Agent-1`) subit une panne ou une attaque (100% CPU), invisible pour Kubernetes (qui ne voit que les `requests`). 10 nouveaux pods web sont déployés.
+
+| Scheduler | Comportement Observé | Pods sur Nœud Surchargé | Verdict |
+| :--- | :--- | :--- | :--- |
+| **Défaut** | Ne voit pas la charge réelle. Continue d'envoyer du trafic sur le nœud mort. | **4 Pods** | 🔴 **ÉCHEC.** Dégradation de service immédiate. |
+| **NexSlice-AI** | Détecte la surcharge via Prometheus en temps réel. | **0 Pod** | 🟢 **SUCCÈS.** L'IA a totalement esquivé la zone de danger. |
+
+### 5.3. Conclusion des Tests Comparatifs
+
+L'IA surpasse le scheduler par défaut dans les deux dimensions clés de la 5G :
+1.  **Intelligence Métier :** Elle ne traite pas tous les pods de la même manière (Slicing).
+2.  **Intelligence Opérationnelle :** Elle réagit à la réalité physique du cluster (Prometheus) plutôt qu'à la théorie administrative (Requests).
+
+### 5.4. Reproduction de l'Expérience
+Pour rejouer ce comparatif exact :
+
+1. Executez dans un autre terminal (laissez le ouvert)
+```bash
+export PROM_POD=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server" -o jsonpath='{.items[0].metadata.name}')
+
+kubectl port-forward -n monitoring pod/$PROM_POD 9090:9090   
+
+```
+2.  Assurez-vous que le scheduler expert tourne : `python3 ai_scheduler-expert.py`
+3.  Lancez le script de scénarios duels :
+    ```bash
+    ./demo_dual_scenarios.sh
+    ```
+
+
+
+---
+
+# 6. Conclusion
 
 Le prototype **NexSlice Scheduler RL** est un succès complet. Il répond non seulement à l'objectif de base (équilibrage CPU/mémoire) mais démontre surtout que le **Reinforcement Learning** est l'approche la plus efficace pour gérer les compromis de **Network Slicing** (Latence vs Capacité) qu'un scheduler statique ne pourrait pas arbitrer. Par manque de temps nous n'avons pas eu le temps de tracer des graphiques de comparaison entre notre solution IA et le scheduler par défaut kubernetes, mais on peut sans problème supposer que le solution IA présente de bien meilleurs performances.
 
@@ -219,7 +266,7 @@ Le prototype **NexSlice Scheduler RL** est un succès complet. Il répond non se
 
 
 
-### 1. `setup_cluster.sh` (Initialisation complète de l'Infra)
+### 1. `setup_demo.sh` (Initialisation complète de l'Infra)
 
 
 ```bash
@@ -239,7 +286,7 @@ kubectl create namespace "$NS_MONITORING" || true
 kubectl create namespace "$NS_APP" || true 
 
 # [INSTALLATION PROMETHEUS 5S]
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add prometheus-community [https://prometheus-community.github.io/helm-charts](https://prometheus-community.github.io/helm-charts)
 helm repo update
 helm install prometheus prometheus-community/prometheus \
   --namespace "$NS_MONITORING" \
